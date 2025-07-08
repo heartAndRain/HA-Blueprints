@@ -1,36 +1,36 @@
 blueprint:
   name: Sync Light and Multiple Switches
   description: >
-    Synchronizes the state of a light and multiple switches. If the light or any switch changes, 
-    all entities are set to the same state (on/off).
+    Synchronize the state of a light and multiple switches. If the light or any switch changes,
+    all others are set to the same state (on or off).
   domain: automation
   input:
     light_entity:
       name: Light
-      description: The light entity to sync with switches
+      description: The light to sync
       selector:
         entity:
           domain: light
-    switches:
+    switch_entities:
       name: Switches
-      description: List of switches to sync with the light
+      description: The switches to sync with the light
       selector:
-        target:
-          entity:
-            domain: switch
+        entity:
+          domain: switch
+          multiple: true
 
 trigger:
   - platform: state
     entity_id: !input light_entity
   - platform: state
-    entity_id: !input switches
+    entity_id: !input switch_entities
 
 condition: []
 
 action:
   - variables:
       light: !input light_entity
-      switch_list: "{{ expand(!input switches) }}"
+      switches: !input switch_entities
       trigger_entity: "{{ trigger.entity_id }}"
       new_state: "{{ trigger.to_state.state }}"
 
@@ -40,11 +40,8 @@ action:
           - service: homeassistant.turn_{{ new_state }}
             target:
               entity_id: >
-                {% set entities_to_sync = switch_list | map(attribute='entity_id') | list %}
-                {% if trigger_entity != light %}
-                  {{ [light] + (entities_to_sync | reject('equalto', trigger_entity) | list) }}
-                {% else %}
-                  {{ entities_to_sync }}
-                {% endif %}
+                {% set all_entities = [light] + switches %}
+                {% set others = all_entities | reject('equalto', trigger_entity) | list %}
+                {{ others }}
 
 mode: parallel
