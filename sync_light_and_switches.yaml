@@ -1,0 +1,50 @@
+blueprint:
+  name: Sync Light and Multiple Switches
+  description: >
+    Synchronizes the state of a light and multiple switches. If the light or any switch changes, 
+    all entities are set to the same state (on/off).
+  domain: automation
+  input:
+    light_entity:
+      name: Light
+      description: The light entity to sync with switches
+      selector:
+        entity:
+          domain: light
+    switches:
+      name: Switches
+      description: List of switches to sync with the light
+      selector:
+        target:
+          entity:
+            domain: switch
+
+trigger:
+  - platform: state
+    entity_id: !input light_entity
+  - platform: state
+    entity_id: !input switches
+
+condition: []
+
+action:
+  - variables:
+      light: !input light_entity
+      switch_list: "{{ expand(!input switches) }}"
+      trigger_entity: "{{ trigger.entity_id }}"
+      new_state: "{{ trigger.to_state.state }}"
+
+  - choose:
+      - conditions: "{{ new_state in ['on', 'off'] }}"
+        sequence:
+          - service: homeassistant.turn_{{ new_state }}
+            target:
+              entity_id: >
+                {% set entities_to_sync = switch_list | map(attribute='entity_id') | list %}
+                {% if trigger_entity != light %}
+                  {{ [light] + (entities_to_sync | reject('equalto', trigger_entity) | list) }}
+                {% else %}
+                  {{ entities_to_sync }}
+                {% endif %}
+
+mode: parallel
